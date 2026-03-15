@@ -1,0 +1,48 @@
+{
+  "image_id": "kitchen_001",
+  "room_type": "kitchen",
+  "source": "staged",
+  "hazards": [
+    {
+      "category": "kitchen",
+      "subcategory": "high_cabinets",
+      "severity": "medium",
+      "location": "Upper kitchen cabinets - require reaching above shoulder height",
+      "annotator": "expert_1",
+      "confidence": "high",
+      "notes": "Frequently used items stored in upper cabinets could lead to falls from reaching"
+    },
+    {
+      "category": "flooring",
+      "subcategory": "slippery_surface",
+      "severity": "medium",
+      "location": "Kitchen floor - smooth tile flooring",
+      "annotator": "expert_1",
+      "confidence": "medium",
+      "notes": "Tile floor can become slippery when wet from cooking/cleaning"
+    },
+    {
+      "category": "obstacles",
+      "subcategory": "trailing_cords",
+      "severity": "high",
+      "location": "Counter area - appliance cords trailing across workspace",
+      "annotator": "expert_1",
+      "confidence": "high",
+      "notes": "Kettle and toaster cords creating trip hazard"
+    },
+    {
+      "category": "lighting",
+      "subcategory": "inadequate_task_light",
+      "severity": "low",
+      "location": "Counter workspace - limited direct lighting",
+      "annotator": "expert_1",
+      "confidence": "medium",
+      "notes": "Under-cabinet lighting would improve visibility for food preparation"
+    }
+  ],
+  "metadata": {
+    "captured_date": "2024-01-16",
+    "image_dimensions": "1920x1080",
+    "notes": "Kitchen with typical fall hazard scenarios"
+  }
+}

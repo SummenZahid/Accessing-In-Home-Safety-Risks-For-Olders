@@ -1,0 +1,71 @@
+{
+  "timestamp": "20260308_002733",
+  "split": "test",
+  "models": [
+    "llava",
+    "moondream"
+  ],
+  "results": {
+    "llava": {
+      "overall_precision": 0.0,
+      "overall_recall": 0.0,
+      "overall_f1": 0.0,
+      "severity_accuracy": 0.0,
+      "severity_kappa": 0.0,
+      "total_predictions": 21,
+      "total_ground_truth": 0,
+      "category_metrics": {
+        "flooring": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0.0,
+          "true_positives": 0,
+          "false_positives": 3,
+          "false_negatives": 0
+        },
+        "furniture": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0.0,
+          "true_positives": 0,
+          "false_positives": 2,
+          "false_negatives": 0
+        },
+        "general": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0.0,
+          "true_positives": 0,
+          "false_positives": 13,
+          "false_negatives": 0
+        },
+        "obstacles": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0.0,
+          "true_positives": 0,
+          "false_positives": 2,
+          "false_negatives": 0
+        },
+        "lighting": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0.0,
+          "true_positives": 0,
+          "false_positives": 1,
+          "false_negatives": 0
+        }
+      }
+    },
+    "moondream": {
+      "overall_precision": 0.0,
+      "overall_recall": 0.0,
+      "overall_f1": 0.0,
+      "severity_accuracy": 0.0,
+      "severity_kappa": 0.0,
+      "total_predictions": 0,
+      "total_ground_truth": 0,
+      "category_metrics": {}
+    }
+  }
+}

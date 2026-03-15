@@ -1,0 +1,129 @@
+{
+  "dataset": "curated_risk_levels",
+  "description": "Curated images for fall hazard detection research",
+  "risk_levels": [
+    "low_risk",
+    "high_risk"
+  ],
+  "room_types": [
+    "bathroom",
+    "kitchen",
+    "stairs",
+    "living_room"
+  ],
+  "created_at": "2026-03-08T00:25:56.337459",
+  "annotations": {
+    "low_risk_bathroom_002": {
+      "risk_level": "low",
+      "room_type": "bathroom",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "low_risk_bathroom_003": {
+      "risk_level": "low",
+      "room_type": "bathroom",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "low_risk_bathroom_001": {
+      "risk_level": "low",
+      "room_type": "bathroom",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "low_risk_kitchen_001": {
+      "risk_level": "low",
+      "room_type": "kitchen",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "low_risk_kitchen_002": {
+      "risk_level": "low",
+      "room_type": "kitchen",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "low_risk_kitchen_003": {
+      "risk_level": "low",
+      "room_type": "kitchen",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "low_risk_stairs_001": {
+      "risk_level": "low",
+      "room_type": "stairs",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "low_risk_stairs_002": {
+      "risk_level": "low",
+      "room_type": "stairs",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "low_risk_living_room_001": {
+      "risk_level": "low",
+      "room_type": "living_room",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "low_risk_living_room_002": {
+      "risk_level": "low",
+      "room_type": "living_room",
+      "hazards": [],
+      "notes": "Low risk environment - minimal hazards expected"
+    },
+    "high_risk_bathroom_001": {
+      "risk_level": "high",
+      "room_type": "bathroom",
+      "hazards": [
+        {
+          "category": "bathroom",
+          "subcategory": "to_be_annotated",
+          "severity": "medium",
+          "description": "Requires manual annotation"
+        }
+      ],
+      "notes": "High risk environment - needs manual hazard annotation"
+    },
+    "high_risk_kitchen_001": {
+      "risk_level": "high",
+      "room_type": "kitchen",
+      "hazards": [
+        {
+          "category": "kitchen",
+          "subcategory": "to_be_annotated",
+          "severity": "medium",
+          "description": "Requires manual annotation"
+        }
+      ],
+      "notes": "High risk environment - needs manual hazard annotation"
+    },
+    "high_risk_stairs_001": {
+      "risk_level": "high",
+      "room_type": "stairs",
+      "hazards": [
+        {
+          "category": "stairs",
+          "subcategory": "to_be_annotated",
+          "severity": "medium",
+          "description": "Requires manual annotation"
+        }
+      ],
+      "notes": "High risk environment - needs manual hazard annotation"
+    },
+    "high_risk_living_room_001": {
+      "risk_level": "high",
+      "room_type": "living_room",
+      "hazards": [
+        {
+          "category": "general",
+          "subcategory": "to_be_annotated",
+          "severity": "medium",
+          "description": "Requires manual annotation"
+        }
+      ],
+      "notes": "High risk environment - needs manual hazard annotation"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "image_id": "stairs_001",
+  "room_type": "stairs",
+  "source": "staged",
+  "hazards": [
+    {
+      "category": "stairs",
+      "subcategory": "single_handrail",
+      "severity": "high",
+      "location": "Staircase - only one handrail on right side",
+      "annotator": "expert_1",
+      "confidence": "high",
+      "notes": "NHS guidelines recommend handrails on both sides for safety"
+    },
+    {
+      "category": "stairs",
+      "subcategory": "no_contrast_edges",
+      "severity": "medium",
+      "location": "Step edges - no contrasting strips or marking",
+      "annotator": "expert_1",
+      "confidence": "high",
+      "notes": "Difficult to see step edges, especially for those with visual impairment"
+    },
+    {
+      "category": "stairs",
+      "subcategory": "poor_stair_lighting",
+      "severity": "high",
+      "location": "Stairwell - insufficient lighting",
+      "annotator": "expert_1",
+      "confidence": "medium",
+      "notes": "Dim lighting increases risk of missteps"
+    },
+    {
+      "category": "flooring",
+      "subcategory": "loose_rug",
+      "severity": "critical",
+      "location": "Top of stairs - small rug at landing",
+      "annotator": "expert_1",
+      "confidence": "high",
+      "notes": "Loose rug at top of stairs is extremely dangerous"
+    }
+  ],
+  "metadata": {
+    "captured_date": "2024-01-17",
+    "image_dimensions": "1920x1080",
+    "notes": "Indoor staircase showing multiple hazards"
+  }
+}

@@ -1,0 +1,340 @@
+# Fall Risk Detection - Prompt Templates
+# Chain-of-thought prompts for vision-language model hazard detection
+# Aligned with Westmead Home Safety Assessment
+
+# =============================================================================
+# COMPREHENSIVE DETECTION PROMPT
+# =============================================================================
+comprehensive_detection:
+  name: "Comprehensive Hazard Detection"
+  description: "Full analysis of home environment for fall hazards"
+
+  system_context: |
+    You are a certified occupational therapist with 20 years of experience in
+    geriatric fall prevention. You have extensive training in:
+    - Westmead Home Safety Assessment (WeHSA)
+    - CDC STEADI Framework for fall prevention
+    - Clinical guidelines for environmental hazard identification
+
+    Your analysis directly impacts the safety of elderly individuals living
+    independently at home. Be thorough, accurate, and specific.
+
+  task_instruction: |
+    Analyze this home environment image to identify ALL potential fall hazards
+    that could endanger an elderly person (65+ years old).
+
+    Consider the perspective of someone with:
+    - Reduced vision and depth perception
+    - Balance and mobility challenges
+    - Slower reaction times
+    - Possible use of walking aids (cane, walker, wheelchair)
+
+    Be specific about hazard locations and provide actionable recommendations.
+
+  chain_of_thought_steps:
+    - step: "ROOM IDENTIFICATION"
+      instruction: "First, identify what type of room or area this is"
+    - step: "SYSTEMATIC SCAN"
+      instruction: "Scan the image methodically from left to right, top to bottom"
+    - step: "FLOOR LEVEL CHECK"
+      instruction: "Examine the floor for rugs, cords, clutter, surface conditions"
+    - step: "VERTICAL SPACE CHECK"
+      instruction: "Look at furniture, railings, grab bars, obstacles at height"
+    - step: "LIGHTING ASSESSMENT"
+      instruction: "Evaluate light levels, shadows, potential glare sources"
+    - step: "PATHWAY ANALYSIS"
+      instruction: "Trace likely walking routes and identify obstructions"
+    - step: "SUPPORT EVALUATION"
+      instruction: "Identify what items might be used for support while walking"
+    - step: "PRIORITIZATION"
+      instruction: "Rank hazards by severity and likelihood of causing a fall"
+
+  hazard_categories:
+    flooring:
+      - "Loose or unsecured rugs and mats"
+      - "Slippery floor surfaces (wet, polished, waxed)"
+      - "Uneven surfaces, raised thresholds"
+      - "Worn or damaged floor coverings"
+    lighting:
+      - "Insufficient or dim lighting"
+      - "Missing night lights"
+      - "Excessive glare"
+      - "Inaccessible light switches"
+    obstacles:
+      - "Trailing cords and cables"
+      - "Floor clutter"
+      - "Obstructed pathways"
+      - "Spills on floor"
+    furniture:
+      - "Unstable furniture"
+      - "Sharp edges at fall height"
+      - "Inappropriate seat height"
+      - "Unstable support objects"
+    stairs:
+      - "Missing or inadequate handrails"
+      - "Slippery stair surfaces"
+      - "Poor stair visibility"
+      - "Improper stair dimensions"
+    bathroom:
+      - "Missing grab bars"
+      - "Slippery surfaces"
+      - "Difficult tub/shower entry"
+      - "Inappropriate toilet height"
+    bedroom:
+      - "Inappropriate bed height"
+      - "Hazardous path to bathroom"
+      - "Poor bedroom lighting"
+      - "Trailing items"
+    kitchen:
+      - "High storage requiring reaching"
+      - "Spill-prone areas"
+      - "Slippery floors"
+    external:
+      - "Pathway hazards"
+      - "External step hazards"
+      - "Poor outdoor lighting"
+      - "Doormat hazards"
+
+  severity_guidelines:
+    low:
+      description: "Minor hazard that slightly increases fall risk"
+      action: "Monitor and address when convenient"
+      examples:
+        - "Slightly dim lighting in well-used area"
+        - "Small area rug with proper non-slip backing"
+        - "Minor clutter in corner, away from walkway"
+    medium:
+      description: "Moderate hazard that could contribute to a fall"
+      action: "Address within 1-2 weeks"
+      examples:
+        - "Rug without non-slip backing"
+        - "Cluttered pathway that can be navigated"
+        - "Chair that is somewhat difficult to rise from"
+    high:
+      description: "Significant hazard likely to cause a fall"
+      action: "Address within 48 hours"
+      examples:
+        - "Trailing electrical cord across walkway"
+        - "Wet or slippery floor surface"
+        - "Unstable furniture used for support"
+    critical:
+      description: "Severe hazard that presents immediate fall risk"
+      action: "Address immediately before continued use"
+      examples:
+        - "Missing stair handrail"
+        - "No grab bars in shower/bathtub"
+        - "Severely obstructed pathway to bathroom"
+
+  output_format: |
+    Provide your response as structured JSON:
+    {
+      "room_type": "string",
+      "overall_confidence": 0.0-1.0,
+      "hazards": [
+        {
+          "category": "flooring|lighting|obstacles|furniture|stairs|bathroom|bedroom|kitchen|external|general",
+          "subcategory": "specific hazard type identifier",
+          "description": "detailed description of the hazard",
+          "severity": "low|medium|high|critical",
+          "confidence": 0.0-1.0,
+          "location_description": "where in the image",
+          "bounding_box": {"x": 0-1, "y": 0-1, "width": 0-1, "height": 0-1},
+          "recommendations": ["action 1", "action 2"]
+        }
+      ]
+    }
+
+# =============================================================================
+# ROOM-SPECIFIC PROMPTS
+# =============================================================================
+bathroom_detection:
+  name: "Bathroom-Specific Detection"
+  description: "Focused analysis for bathroom environments"
+
+  additional_context: |
+    Bathroom falls are among the most dangerous for elderly individuals due to:
+    - Hard surfaces causing severe injury
+    - Wet and slippery conditions
+    - Confined spaces limiting fall recovery
+    - Privacy concerns may delay assistance
+
+    Pay special attention to:
+    - Grab bar presence and positioning near toilet, tub, and shower
+    - Non-slip surfaces in all wet areas
+    - Entry and exit points to shower or bathtub
+    - Lighting adequacy for nighttime use
+    - Bath mat and floor covering conditions
+
+  priority_hazards:
+    - "bath_no_grab_bars"
+    - "bath_floor_slippery"
+    - "bath_tub_entry"
+    - "bath_toilet_height"
+    - "light_night_absent"
+
+stairs_detection:
+  name: "Stairs-Specific Detection"
+  description: "Focused analysis for stairways"
+
+  additional_context: |
+    Stair falls often result in the most severe injuries including:
+    - Hip fractures
+    - Head injuries
+    - Multiple trauma from tumbling
+
+    Critical assessment points:
+    - Handrail presence on BOTH sides
+    - Handrail continuity (full length of stairs)
+    - Handrail stability and condition
+    - Step visibility and edge contrast
+    - Stair surface condition and traction
+    - Lighting at top, bottom, and throughout
+    - Step uniformity (height and depth)
+
+  priority_hazards:
+    - "stairs_no_handrail"
+    - "stairs_handrail_poor"
+    - "stairs_slippery"
+    - "stairs_visibility"
+    - "light_insufficient"
+
+bedroom_detection:
+  name: "Bedroom-Specific Detection"
+  description: "Focused analysis for bedroom environments"
+
+  additional_context: |
+    Many falls occur in bedrooms, especially:
+    - Getting out of bed at night
+    - Walking to bathroom in darkness
+    - Rising from seated position
+
+    Key assessment areas:
+    - Bed height and stability
+    - Clear path from bed to door
+    - Clear path from bed to bathroom
+    - Nighttime lighting availability
+    - Bedside light accessibility
+    - Floor hazards near bed
+
+  priority_hazards:
+    - "bedroom_bed_height"
+    - "bedroom_path_bathroom"
+    - "bedroom_lighting"
+    - "obstacle_clutter"
+    - "floor_loose_rug"
+
+living_room_detection:
+  name: "Living Room-Specific Detection"
+  description: "Focused analysis for living room/common areas"
+
+  additional_context: |
+    Living rooms present hazards from:
+    - Furniture arrangements and traffic patterns
+    - Multiple seating options with varying accessibility
+    - Entertainment electronics and cords
+    - Rugs and floor decorations
+
+    Key assessment areas:
+    - Clear pathways between furniture
+    - Seating that allows easy rising
+    - Stable furniture for support
+    - Cord management
+    - Rug conditions and placement
+
+  priority_hazards:
+    - "furniture_seat_height"
+    - "furniture_unstable"
+    - "obstacle_cord"
+    - "obstacle_pathway"
+    - "floor_loose_rug"
+
+kitchen_detection:
+  name: "Kitchen-Specific Detection"
+  description: "Focused analysis for kitchen environments"
+
+  additional_context: |
+    Kitchen falls often involve:
+    - Wet or greasy floor surfaces
+    - Reaching for items in high cabinets
+    - Standing on step stools
+    - Carrying items while walking
+
+    Key assessment areas:
+    - Floor conditions near sink and stove
+    - Storage accessibility
+    - Walking space and traffic flow
+    - Lighting adequacy for tasks
+    - Stability of step stools if present
+
+  priority_hazards:
+    - "kitchen_floor"
+    - "kitchen_high_storage"
+    - "kitchen_spill_areas"
+    - "general_reaching"
+    - "floor_slippery"
+
+# =============================================================================
+# FEW-SHOT EXAMPLES
+# =============================================================================
+few_shot_examples:
+  - room_type: "bathroom"
+    hazard:
+      category: "bathroom"
+      subcategory: "bath_no_grab_bars"
+      description: "No grab bars present near the toilet or bathtub. The elderly person would have no stable support for sitting, standing, or transferring."
+      severity: "critical"
+      confidence: 0.95
+      location_description: "Toilet area on left side of image, bathtub on right"
+      recommendations:
+        - "Install grab bars on wall beside toilet"
+        - "Install grab bar inside bathtub/shower area"
+        - "Consider adding a raised toilet seat"
+
+  - room_type: "living_room"
+    hazard:
+      category: "obstacles"
+      subcategory: "obstacle_cord"
+      description: "Electrical cord from floor lamp runs across the carpet between the sofa and doorway, directly in the main walking path."
+      severity: "high"
+      confidence: 0.92
+      location_description: "Center of image, floor level, running from furniture to wall outlet"
+      recommendations:
+        - "Secure cord along wall using cord covers or tape"
+        - "Move lamp closer to the wall outlet"
+        - "Consider wireless or battery-operated lighting"
+
+  - room_type: "bedroom"
+    hazard:
+      category: "flooring"
+      subcategory: "floor_loose_rug"
+      description: "Small throw rug at bedside without visible non-slip backing. Edges appear slightly curled, creating trip hazard when getting out of bed."
+      severity: "high"
+      confidence: 0.88
+      location_description: "Right side of bed, on wooden floor"
+      recommendations:
+        - "Remove the rug entirely"
+        - "Replace with rug that has non-slip backing"
+        - "Secure edges with double-sided carpet tape"
+
+# =============================================================================
+# CONFIDENCE CALIBRATION
+# =============================================================================
+confidence_guidelines:
+  high_confidence: # 0.85-1.0
+    - "Hazard is clearly visible and unambiguous"
+    - "Multiple indicators confirm the hazard"
+    - "Category and severity are definitive"
+
+  medium_confidence: # 0.60-0.84
+    - "Hazard is visible but partially obscured"
+    - "Some uncertainty in severity classification"
+    - "Image quality or angle limits assessment"
+
+  low_confidence: # 0.40-0.59
+    - "Hazard is inferred but not clearly visible"
+    - "Limited view makes definitive assessment difficult"
+    - "Requires verification through additional image"
+
+  uncertain: # Below 0.40
+    - "Do not include hazards below 0.40 confidence"
+    - "Note as 'potential concern' in general comments only"

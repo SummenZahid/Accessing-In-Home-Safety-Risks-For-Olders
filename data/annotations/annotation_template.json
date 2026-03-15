@@ -1,0 +1,128 @@
+{
+  "_description": "Template for annotating fall hazard images. Copy this file for each image.",
+  "_instructions": [
+    "1. Copy this template and rename to match your image ID (e.g., bathroom_001.json)",
+    "2. Fill in the image_id to match the image filename (without extension)",
+    "3. Specify the room_type from the valid options",
+    "4. Add all hazards you observe in the image",
+    "5. Each hazard should have category, subcategory, severity, and location"
+  ],
+  "image_id": "example_image_id",
+  "room_type": "bathroom",
+  "_valid_room_types": [
+    "bathroom",
+    "kitchen",
+    "bedroom",
+    "living_room",
+    "stairs",
+    "hallway",
+    "entrance",
+    "external"
+  ],
+  "source": "staged",
+  "_valid_sources": [
+    "staged",
+    "public_dataset",
+    "synthetic",
+    "real_world"
+  ],
+  "hazards": [
+    {
+      "category": "bathroom",
+      "subcategory": "bath_no_grab_bars",
+      "severity": "critical",
+      "location": "Near toilet, no grab bar visible on adjacent wall",
+      "annotator": "expert_reviewer",
+      "confidence": "high",
+      "notes": "Elderly person would have difficulty standing from toilet"
+    }
+  ],
+  "_valid_categories": {
+    "flooring": [
+      "loose_rug",
+      "slippery_surface",
+      "uneven_floor",
+      "damaged_flooring",
+      "high_threshold",
+      "cluttered_floor"
+    ],
+    "lighting": [
+      "dim_lighting",
+      "no_night_light",
+      "glare",
+      "inadequate_task_light",
+      "inaccessible_switch"
+    ],
+    "obstacles": [
+      "floor_clutter",
+      "trailing_cords",
+      "pet_hazards",
+      "narrow_pathway",
+      "low_furniture"
+    ],
+    "furniture": [
+      "unstable_furniture",
+      "low_seating",
+      "no_armrests",
+      "sharp_corners",
+      "inappropriate_height"
+    ],
+    "stairs": [
+      "no_handrails",
+      "single_handrail",
+      "loose_handrail",
+      "uneven_steps",
+      "worn_treads",
+      "poor_stair_lighting",
+      "no_contrast_edges",
+      "steep_stairs"
+    ],
+    "bathroom": [
+      "bath_no_grab_bars",
+      "shower_no_grab_bars",
+      "toilet_no_grab_bars",
+      "slippery_bath",
+      "no_bath_mat",
+      "high_bath_edge",
+      "no_shower_seat"
+    ],
+    "kitchen": [
+      "high_cabinets",
+      "no_step_stool",
+      "slippery_kitchen_floor",
+      "poor_kitchen_lighting",
+      "cluttered_counters"
+    ],
+    "bedroom": [
+      "bed_height_issue",
+      "no_bedside_light",
+      "floor_obstacles_bedroom",
+      "distant_bathroom"
+    ],
+    "external": [
+      "uneven_pathway",
+      "no_outdoor_handrail",
+      "poor_outdoor_lighting",
+      "slippery_outdoor",
+      "step_hazard_entrance"
+    ],
+    "general": [
+      "no_emergency_alert",
+      "phone_inaccessible",
+      "general_clutter",
+      "inappropriate_footwear"
+    ]
+  },
+  "_valid_severities": {
+    "low": "Minor issue, some inconvenience but low fall risk",
+    "medium": "Moderate risk, should be addressed to improve safety",
+    "high": "Significant fall risk, priority for remediation",
+    "critical": "Immediate danger, urgent intervention required"
+  },
+  "metadata": {
+    "captured_date": "2024-01-15",
+    "camera": "iPhone 14",
+    "image_dimensions": "1920x1080",
+    "notes": "Image taken during morning with natural lighting"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "image_id": "bathroom_001",
+  "room_type": "bathroom",
+  "source": "staged",
+  "hazards": [
+    {
+      "category": "bathroom",
+      "subcategory": "bath_no_grab_bars",
+      "severity": "critical",
+      "location": "Bathtub area - no grab bars on wall near tub entry",
+      "annotator": "expert_1",
+      "confidence": "high",
+      "notes": "Standard bathtub with no assistive features"
+    },
+    {
+      "category": "bathroom",
+      "subcategory": "toilet_no_grab_bars",
+      "severity": "high",
+      "location": "Toilet area - no grab bars adjacent to toilet",
+      "annotator": "expert_1",
+      "confidence": "high",
+      "notes": "Difficult for elderly to sit/stand without support"
+    },
+    {
+      "category": "bathroom",
+      "subcategory": "no_bath_mat",
+      "severity": "medium",
+      "location": "Floor in front of bathtub",
+      "annotator": "expert_1",
+      "confidence": "medium",
+      "notes": "Wet floor surface after bathing could cause slip"
+    },
+    {
+      "category": "flooring",
+      "subcategory": "slippery_surface",
+      "severity": "medium",
+      "location": "Bathroom floor - appears to be smooth tile",
+      "annotator": "expert_1",
+      "confidence": "medium",
+      "notes": "Smooth tile can be slippery when wet"
+    }
+  ],
+  "metadata": {
+    "captured_date": "2024-01-15",
+    "image_dimensions": "1920x1080",
+    "notes": "Staged bathroom photo showing typical hazards"
+  }
+}
