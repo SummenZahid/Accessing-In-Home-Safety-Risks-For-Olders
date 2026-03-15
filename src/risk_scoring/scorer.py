@@ -10,34 +10,16 @@ from dataclasses import dataclass
 from enum import Enum
 from collections import defaultdict
 
-import sys
-from pathlib import Path
-# Add parent directory to path for imports when running standalone
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from models.base_model import DetectedHazard, HazardDetectionResult
-
-# Handle both relative and absolute imports
-try:
-    from .weights import (
-        HazardCategory,
-        CategoryWeight,
-        CATEGORY_WEIGHTS,
-        SEVERITY_MULTIPLIERS,
-        HAZARD_BASE_WEIGHTS,
-        get_hazard_weight,
-        get_category_weight,
-    )
-except ImportError:
-    from risk_scoring.weights import (
-        HazardCategory,
-        CategoryWeight,
-        CATEGORY_WEIGHTS,
-        SEVERITY_MULTIPLIERS,
-        HAZARD_BASE_WEIGHTS,
-        get_hazard_weight,
-        get_category_weight,
-    )
+from ..models.base_model import DetectedHazard, HazardDetectionResult
+from .weights import (
+    HazardCategory,
+    CategoryWeight,
+    CATEGORY_WEIGHTS,
+    SEVERITY_MULTIPLIERS,
+    HAZARD_BASE_WEIGHTS,
+    get_hazard_weight,
+    get_category_weight,
+)
 
 
 class RiskLevel(Enum):

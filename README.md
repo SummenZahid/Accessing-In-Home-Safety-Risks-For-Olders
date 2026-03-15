@@ -1,143 +1,129 @@
-# Fall Risk Detection System
+# Assessing In-Home Safety Risks for Older Adults Using Generative AI
 
-**Assessing In-Home Safety Risks for Older Adults Using Generative Models**
+An AI-powered system that detects, quantifies, and explains fall hazards in home environments for elderly individuals using Vision-Language Models (VLMs). Built as part of a Masters dissertation at Ulster University.
 
-A Generative AI-based system that identifies, quantifies, and explains fall risks in domestic environments for elderly individuals living alone.
+## Overview
 
-## Project Overview
+Falls are the leading cause of injury among older adults — one-third of people aged 65+ fall annually, with 50–60% of falls occurring at home due to environmental hazards. Traditional home safety assessments require trained professionals and take 45–60 minutes per home.
 
-Falls are one of the major contributors to injuries, hospitalizations, and loss of independence for older people living in their own homes. This system uses vision-language models to analyze home environment images and detect potential fall hazards, providing:
+This system automates that process using vision-language models to analyze room photographs and:
 
-- **Hazard Detection**: Identifies environmental hazards based on clinical guidelines
-- **Risk Quantification**: Calculates weighted risk scores (0-100 scale)
-- **Explainable Outputs**: Provides human-readable explanations and recommendations
-- **Clinical Alignment**: Based on the Westmead Home Safety Assessment framework
+- **Detect hazards** across 42 clinically-validated subcategories aligned with the Westmead Home Safety Assessment
+- **Score risk** on a 0–100 scale using evidence-based clinical weights
+- **Generate recommendations** with prioritized, actionable steps
+- **Visualize hazard regions** with color-coded severity overlays
 
 ## Features
 
-- Multi-model support (OpenAI GPT-4 Vision, Google Gemini)
-- Multi-pass detection strategy for improved accuracy
-- Comprehensive hazard categories aligned with Westmead Assessment
-- Clinically-weighted risk scoring algorithm
-- Structured JSON output with Pydantic validation
-- Interactive Jupyter notebooks for analysis
-
-## Installation
-
-### Prerequisites
-
-- Python 3.10 or higher
-- An API key for either:
-  - OpenAI (for GPT-4 Vision)
-  - Google Cloud (for Gemini)
-
-### Setup
-
-1. Clone the repository:
-```bash
-cd /path/to/Dissertation/code
-```
-
-2. Create and activate a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Create environment file:
-```bash
-cp .env.example .env
-```
-
-5. Add your API key to `.env`:
-```
-# For OpenAI
-OPENAI_API_KEY=your_openai_key_here
-
-# OR for Google Gemini
-GOOGLE_API_KEY=your_google_key_here
-```
+- **Streamlit web application** for interactive analysis with image upload
+- **Multi-model support** — Ollama (LLaVA, Moondream), OpenAI GPT-4 Vision, Google Gemini 2.0 Flash
+- **Local-first inference** — runs privately on your machine with free open-source models via Ollama
+- **Side-by-side model comparison** (LLaVA vs Moondream)
+- **Multi-pass detection** with chain-of-thought prompting and deduplication
+- **Image preprocessing** — auto-enhancement (CLAHE, brightness, blur detection)
+- **Region-based visualization** — 9-region grid with severity-coded overlays
+- **Structured outputs** with Pydantic validation and JSON export
+- **Comprehensive evaluation framework** — precision, recall, F1, Cohen's Kappa
+- **Batch processing** for dataset-level analysis
 
 ## Quick Start
 
-### Using Python
+### Prerequisites
 
-```python
-from src.models.model_factory import VisionModelFactory
-from src.models.base_model import ImageInput
-from src.hazard_detection.detector import HazardDetector
-from src.risk_scoring.scorer import RiskScorer
+- Python 3.10+
+- [Ollama](https://ollama.ai) installed and running
 
-# Initialize model (auto-detects based on available API keys)
-model = VisionModelFactory.create_auto({})
+### Setup
 
-# Initialize detector and scorer
-detector = HazardDetector(model)
-scorer = RiskScorer()
+```bash
+# 1. Pull a vision model
+ollama pull llava:7b       # ~4GB, recommended
+# or
+ollama pull moondream      # ~1.6GB, faster but less accurate
 
-# Analyze an image
-image = ImageInput(path="path/to/home_image.jpg")
-detection_result = detector.detect_hazards(image)
-risk_result = scorer.calculate_score(detection_result)
+# 2. Install dependencies
+python -m venv venv
+source venv/bin/activate   # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
 
-# View results
-print(f"Risk Score: {risk_result.total_score}/100")
-print(f"Risk Level: {risk_result.risk_level.value}")
-print(f"Hazards Found: {len(detection_result.hazards)}")
+# 3. Run the web app
+streamlit run app.py
+# Opens at http://localhost:8501
 ```
 
-### Using Jupyter Notebooks
+Upload a room image, click **Analyze for Hazards**, and view the results.
 
-Open and run `notebooks/01_getting_started.ipynb` for an interactive walkthrough.
+### Optional: Cloud API Models
+
+To use GPT-4 Vision or Gemini, create a `.env` file:
+
+```
+OPENAI_API_KEY=your_key_here
+GOOGLE_API_KEY=your_key_here
+```
 
 ## Project Structure
 
 ```
-fall-risk-detection/
+├── app.py                           # Streamlit web application
+├── requirements.txt                 # Python dependencies
 ├── configs/
-│   └── prompts/              # Prompt templates (YAML)
+│   └── prompts/
+│       └── hazard_detection.yaml    # VLM prompt templates
 ├── src/
-│   ├── models/               # Vision model integrations
-│   │   ├── base_model.py     # Abstract interface & schemas
-│   │   ├── gpt4v_model.py    # OpenAI GPT-4 Vision
-│   │   ├── gemini_model.py   # Google Gemini
-│   │   └── model_factory.py  # Factory pattern
-│   ├── hazard_detection/     # Hazard detection module
-│   │   ├── categories.py     # Westmead hazard definitions
-│   │   └── detector.py       # Detection orchestrator
-│   ├── risk_scoring/         # Risk scoring module
-│   │   ├── weights.py        # Clinical weights
-│   │   └── scorer.py         # Scoring algorithm
-│   ├── explainability/       # Explanation generation
-│   ├── preprocessing/        # Image preprocessing
-│   └── evaluation/           # Evaluation metrics
-├── notebooks/                # Jupyter notebooks
+│   ├── models/                      # Vision model integrations
+│   │   ├── base_model.py            # Abstract interface & Pydantic schemas
+│   │   ├── gpt4v_model.py           # OpenAI GPT-4 Vision
+│   │   ├── gemini_model.py          # Google Gemini
+│   │   └── model_factory.py         # Factory pattern for model selection
+│   ├── hazard_detection/            # Core detection logic
+│   │   ├── detector.py              # Multi-pass detection orchestrator
+│   │   └── categories.py            # Westmead-aligned hazard taxonomy (42 types)
+│   ├── risk_scoring/                # Risk quantification
+│   │   ├── scorer.py                # Weighted scoring algorithm
+│   │   └── weights.py               # Clinical evidence-based weights
+│   ├── preprocessing/               # Image quality & enhancement
+│   │   ├── image_processor.py       # CLAHE, brightness, blur detection
+│   │   └── data_loader.py           # Dataset loading utilities
+│   └── evaluation/                  # Evaluation framework
+│       ├── run_evaluation.py        # Systematic evaluation pipeline
+│       └── metrics.py               # Precision, recall, F1, Cohen's Kappa
+├── scripts/                         # Utility scripts
+│   ├── classify_images.py           # Batch image classification
+│   ├── prepare_training_data.py     # Dataset preparation
+│   ├── convert_phele_annotations.py # Annotation format conversion
+│   └── download_curated_images.py   # Dataset downloads
+├── notebooks/
+│   ├── 01_getting_started.ipynb     # Interactive tutorial
+│   └── finetune_llava_colab.ipynb   # Fine-tuning guide (Google Colab)
 ├── data/
-│   ├── sample/               # Sample test images
-│   └── annotations/          # Ground truth (JSON)
-├── tests/                    # Unit tests
-└── reports/                  # Generated reports
+│   ├── annotations/                 # Ground truth annotations (JSON, tracked)
+│   ├── curated/                     # Curated high/low risk images (not tracked)
+│   ├── processed/                   # Pre-processed classified images (not tracked)
+│   ├── raw/phele/                   # PHELE dataset, 575 images (not tracked)
+│   └── sample/                      # Custom test images
+├── tests/                           # pytest test suite
+├── docs/                            # Research paper & meeting notes
+├── results/evaluation/              # Model evaluation outputs (JSON)
+└── reports/                         # Generated reports & figures
 ```
 
 ## Hazard Categories
 
-Based on the Westmead Home Safety Assessment:
+Based on the Westmead Home Safety Assessment — 42 subcategories across 10 main categories:
 
 | Category | Examples | Clinical Weight |
 |----------|----------|-----------------|
-| Stairs | Missing handrails, slippery surfaces | 1.00 (highest) |
-| Bathroom | No grab bars, slippery floors | 0.95 |
-| Flooring | Loose rugs, uneven surfaces | 0.85 |
-| Obstacles | Cords, clutter, blocked paths | 0.85 |
-| Lighting | Dim areas, no night lights | 0.75 |
-| Furniture | Unstable, wrong height | 0.70 |
+| Stairs | Missing handrails, slippery steps, poor lighting | 1.00 |
+| Bathroom | No grab bars, slippery surfaces, toilet transfers | 0.95 |
+| Flooring | Loose rugs, uneven surfaces, high thresholds | 0.85 |
+| Obstacles | Cords, clutter, blocked pathways | 0.85 |
+| External | Pathways, ramps, gates | 0.80 |
+| Lighting | Dim areas, shadows, no night lights | 0.75 |
 | Bedroom | Bed height, path to bathroom | 0.75 |
-| Kitchen | High storage, spill areas | 0.70 |
+| Furniture | Unstable items, wrong height, sharp edges | 0.70 |
+| Kitchen | High storage, spill hazards | 0.70 |
+| General | Other environmental hazards | 0.60 |
 
 ## Risk Scoring
 
@@ -145,57 +131,72 @@ Based on the Westmead Home Safety Assessment:
 Risk Score = Σ (CategoryWeight × SeverityMultiplier × Confidence × HazardWeight)
 
 Severity Multipliers:
-- Low: 0.25
-- Medium: 0.50
-- High: 0.75
-- Critical: 1.00
+  Low: 0.25 | Medium: 0.50 | High: 0.75 | Critical: 1.00
 
-Risk Levels:
-- 0-25:  LOW       (green)  - Minor concerns
-- 26-50: MODERATE  (yellow) - Address within 2 weeks
-- 51-75: HIGH      (orange) - Address within 48 hours
-- 76-100: CRITICAL (red)    - Immediate action required
+Risk Levels (0–100):
+  0–25:   LOW       — Minor concerns
+  26–50:  MODERATE  — Address within 2 weeks
+  51–75:  HIGH      — Address within 48 hours
+  76–100: CRITICAL  — Immediate action required
 ```
 
-## API Reference
+## Usage
 
-### HazardDetector
-
-```python
-detector = HazardDetector(vision_model, prompts_dir="configs/prompts")
-
-# Full detection with multi-pass
-result = detector.detect_hazards(image, config=DetectionConfig())
-
-# Quick detection (single pass)
-result = detector.detect_quick(image, room_type="bathroom")
-```
-
-### RiskScorer
+### Python API
 
 ```python
+from src.models.model_factory import VisionModelFactory
+from src.models.base_model import ImageInput
+from src.hazard_detection.detector import HazardDetector
+from src.risk_scoring.scorer import RiskScorer
+
+model = VisionModelFactory.create_auto({})
+detector = HazardDetector(model)
 scorer = RiskScorer()
 
-# Calculate comprehensive score
-risk_result = scorer.calculate_score(detection_result)
+image = ImageInput(path="path/to/room.jpg")
+result = detector.detect_hazards(image)
+risk = scorer.calculate_score(result)
 
-# Quick score without breakdown
-quick_score = scorer.calculate_quick_score(hazards)
+print(f"Risk Score: {risk.total_score}/100 ({risk.risk_level.value})")
+print(f"Hazards Found: {len(result.hazards)}")
 ```
 
-## Testing
+### Batch Processing
 
 ```bash
-# Run all tests
-pytest tests/
+python scripts/classify_images.py --source data/raw/phele/test --max-images 100
+```
 
-# Run with coverage
+### Evaluation
+
+```bash
+python -m src.evaluation.run_evaluation --model llava --split test
+```
+
+### Tests
+
+```bash
+pytest tests/
 pytest tests/ --cov=src --cov-report=html
 ```
 
-## License
+## Models Supported
 
-This project is developed as part of a Masters dissertation at Ulster University.
+| Model | Type | Size | Speed | Cost |
+|-------|------|------|-------|------|
+| LLaVA 7B | Local (Ollama) | ~4 GB | ~30–60s | Free |
+| Moondream | Local (Ollama) | ~1.6 GB | ~20s | Free |
+| GPT-4 Vision | Cloud (OpenAI) | — | ~5–10s | Paid |
+| Gemini 2.0 Flash | Cloud (Google) | — | ~5–10s | Paid |
+
+## Tech Stack
+
+**Core:** Python, Streamlit, Pydantic v2, YAML
+**Vision Models:** Ollama, OpenAI API, Google Gemini API
+**Image Processing:** OpenCV, Pillow, NumPy
+**Evaluation:** scikit-learn, Pandas, Matplotlib, Seaborn
+**Testing:** pytest
 
 ## References
 
@@ -207,4 +208,8 @@ This project is developed as part of a Masters dissertation at Ulster University
 
 **Summen Zahid** (B00996747)
 Supervisor: Mark Donnelly
-Ulster University - COM748 Masters Research Project
+Ulster University — COM748 Masters Research Project
+
+---
+
+*Last updated: March 2026*

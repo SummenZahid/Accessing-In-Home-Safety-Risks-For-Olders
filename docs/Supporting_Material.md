@@ -23,7 +23,7 @@
 
 ### 1.1 The Global Burden of Falls
 
-Falls represent one of the most significant public health challenges facing ageing populations. The WHO estimates 684,000 fatal falls annually, making falls the second leading cause of unintentional injury death [WHO, 2007]. Morbidity is substantial: approximately 95% of hip fractures result from falls with only 25% making full recovery [Stevens & Rudd, 2013], and falls are the leading cause of traumatic brain injury in older adults, accounting for over 50% of cases [Taylor et al., 2017]. Fear of falling leads to activity restriction, social isolation, and accelerated functional decline [Scheffer et al., 2008]. In the United States, fall-related medical costs exceeded $50 billion annually in 2020 [Florence et al., 2018].
+Falls represent one of the most significant public health challenges facing ageing populations. The WHO estimates 684,000 fatal falls annually, making falls the second leading cause of unintentional injury death [WHO, 2007]. Approximately 95% of hip fractures result from falls with only 25% making full recovery [Stevens & Rudd, 2013]. Fear of falling leads to activity restriction, social isolation, and accelerated functional decline [Scheffer et al., 2008].
 
 ### 1.2 Environmental Risk Factors
 
@@ -109,27 +109,27 @@ This project follows the Design Science Research Methodology (DSRM) [Peffers et 
 
 ### 3.2 Ethical Issues
 
-**Privacy**: Home photographs contain sensitive information about living conditions, personal belongings, health status indicators, and family items. Mitigations include local processing options (Ollama/LLaVA), minimal data retention policies, user consent workflow recommendations, and data anonymisation guidelines for research use.
+**Privacy**: Home photographs contain sensitive information. Mitigations include local processing options (Ollama/LLaVA), minimal data retention policies, and user consent workflow recommendations.
 
-**Algorithmic Bias**: VLMs are trained predominantly on Western home environments, potentially underperforming in diverse cultural contexts. Housing styles, furniture arrangements, and acceptable risk levels vary across cultures and socioeconomic groups. Mitigation involves diverse test image collection, ongoing performance monitoring across demographic groups, and cultural adaptation guidelines for deployment contexts.
+**Algorithmic Bias**: VLMs are trained predominantly on Western home environments, potentially underperforming in diverse cultural contexts. Mitigation involves diverse test image collection and cultural adaptation guidelines for deployment.
 
-**Informed Consent and Liability**: Older adults must understand the system's purpose and limitations before use, retaining autonomy over remediation decisions. The system provides screening, not diagnosis; professional follow-up is recommended for high-risk scores. Clear delineation of responsibilities protects both users and developers.
+**Informed Consent and Liability**: The system provides screening, not diagnosis; professional follow-up is recommended for high-risk scores.
 
 ### 3.3 Social Issues
 
-**Digital Divide**: Older adults face technology barriers including limited smartphone access, digital literacy challenges, and physical limitations affecting image capture. The system accommodates this through family/caregiver involvement workflows, simple Streamlit interface design, and potential deployment through healthcare providers who capture images during home visits.
+**Digital Divide**: Older adults face technology barriers. The system accommodates this through family/caregiver involvement workflows, simple Streamlit interface design, and potential deployment through healthcare providers.
 
-**Healthcare Equity**: The system has dual potential: it could extend assessment access to rural and underserved areas where specialist assessors are unavailable, reducing cost barriers. Conversely, technology access concentrated in affluent populations could exacerbate health disparities. Positioning as a complement to existing care pathways, not a replacement, is essential.
+**Healthcare Equity**: The system could extend assessment access to rural and underserved areas, but technology access disparities could exacerbate health inequalities. Positioning as a complement to existing care pathways is essential.
 
-**Impact on Healthcare Workers**: The system is positioned as an augmentation tool for occupational therapists, enabling them to focus professional time on complex cases while automated screening handles initial assessment. This requires training resources for healthcare integration and clear communication that the technology supports rather than replaces professional roles.
+**Impact on Healthcare Workers**: The system augments occupational therapists, enabling focus on complex cases while automated screening handles initial assessment.
 
 ### 3.4 Sustainability Issues
 
-**Environmental**: Cloud VLM inference has carbon footprint implications through data centre energy consumption. Mitigations include efficient prompt design minimising API calls, batch processing options, and local model alternatives (LLaVA via Ollama) that reduce network energy costs.
+**Environmental**: Mitigations include efficient prompt design minimising API calls and local model alternatives (LLaVA via Ollama) that reduce network energy costs.
 
-**Economic**: API costs for GPT-4V and Gemini (~$0.01-0.05 per image) are sustainable for screening programmes but require budget planning at scale. Open-source model development (LLaVA fine-tuning) provides long-term cost sustainability without API dependencies.
+**Economic**: API costs (~$0.01-0.05 per image) are sustainable for screening programmes. Open-source models provide long-term cost sustainability without API dependencies.
 
-**Social**: Ensuring lasting positive impact requires building local capacity for system maintenance, knowledge transfer to healthcare systems, and avoiding technology dependency without local expertise. The open-source codebase and comprehensive documentation support this goal.
+**Social**: The open-source codebase and documentation support knowledge transfer and local capacity building.
 
 ---
 
@@ -143,13 +143,29 @@ Technical innovations include the factory pattern enabling model interchangeabil
 
 ### 4.2 Challenges and Resolutions
 
-**Prompt Engineering Complexity**: Initial prompts produced inconsistent, verbose outputs. Resolution involved iterative refinement with explicit JSON schemas, few-shot examples, negative examples, and model-specific prompt simplification (e.g., reducing output fields from 7 to 3 for Moondream). Lesson: prompt engineering is an empirical process requiring systematic experimentation.
+**Challenge 1 — Risk Scores Stuck at Moderate**: Initial testing revealed that regardless of image severity, risk scores remained in the 25-50 (MODERATE) range. A severely cluttered, damaged room scored only 29/100 on LLaVA and 6/100 on Moondream (Figure 1). Root cause analysis identified three compounding issues: (a) the prompt instructed the model to "Be conservative" and report "ONLY 3-6 hazards maximum" with confidence >= 0.6, (b) the scoring formula used a per-hazard multiplier of only 20, meaning 3 medium hazards scored just 25.5/100, and (c) Moondream returned placeholder text instead of analysing the image.
 
-**VLM Output Variability**: Same image with identical prompt produced detection counts ranging from 5 to 21 across API calls, even at temperature 0.1. Resolution included multi-pass aggregation, confidence thresholding (minimum 0.6), and deduplication. Lesson: VLM stochasticity requires architectural design accommodations, not just parameter tuning.
+*Resolution*: The scoring algorithm was redesigned with higher severity weights (medium: 0.50→0.65, high: 0.75→0.85), an increased base multiplier (20→30), a cumulative risk multiplier for multiple hazards (3+ hazards: +15%, 6+: +30%, 9+: +45%), and high-severity bonuses. With this formula, the same 3 medium hazards now score 60.5/100 (HIGH), accurately reflecting the danger. The prompt was rewritten to encourage thorough detection of up to 10 hazards.
 
-**Ground Truth Scarcity**: No public dataset of home images with labelled fall hazards exists. The PHELE dataset provides real domestic images but lacks comprehensive hazard annotations. Resolution included creating annotation templates, expert-annotated example scenarios, and an evaluation framework prepared for future data collection. Lesson: novel application domains require data collection planning from project inception.
+![Figure 1: Before fix — severely cluttered room scored only 29/100 (LLaVA) and 6/100 (Moondream)](screenshots/before_fix_low_scores.png)
 
-**Open-Source Model Limitations**: Moondream (~1.6B parameters) consistently returned 0 hazards due to inability to follow complex structured prompting. Resolution involved model-specific simplified prompts and a regex-based fallback extractor for plain text responses. Lesson: system design must accommodate the capability spectrum of target models, not just the most capable.
+**Challenge 2 — Scope Limited to Falls Only**: Testing with a kitchen fire image revealed that neither model detected the fire — LLaVA returned 0 hazards, Moondream returned 2 hallucinated hazards unrelated to fire. The system was designed exclusively for fall hazards, missing critical dangers like fire, electrical, and structural hazards that pose equal or greater risk to elderly residents living alone.
+
+*Resolution*: The hazard taxonomy was expanded from fall-specific to comprehensive home safety. New categories added: fire/burn hazards, electrical hazards, and structural hazards. Prompts were rewritten to cover fire, smoke, exposed wiring, structural damage, blocked exits, and chemical/toxic hazards. Category weights were updated (fire: 1.0, electrical: 1.0, structural: 0.95). The text fallback extractor was extended with fire and structural keywords.
+
+**Challenge 3 — Model Hallucination on Clean Rooms**: A clean, modern bathroom with a glass shower scored 100/100 on both models. LLaVA reported "stair (critical)", "tub (critical)", "shower (critical)" — treating normal fixtures as hazards. Moondream copied the JSON template placeholder text verbatim instead of analysing the image (Figure 2).
+
+*Resolution*: Three targeted fixes were applied. First, the LLaVA prompt was augmented with explicit anti-hallucination instructions: "A shower, bathtub, toilet, sink is NOT a hazard by itself. Only flag if BROKEN, DAMAGED, or MISSING a safety feature." Second, Moondream's prompt was simplified to plain text (removing all JSON templates that it was copying), relying on a keyword-based text fallback extractor. Third, the text fallback was redesigned with a two-tier keyword system: direct hazard words (fire, clutter, slip) always trigger, while context-dependent words (floor, bath, stair) only trigger when paired with danger modifiers (broken, missing, wet, loose). A negation detector was added to prevent sentences like "no visible clutter" from triggering false positives.
+
+![Figure 2: After fix — clean modern living room correctly scores 0/100 with no hazards detected](screenshots/after_fix_clean_room.png)
+
+**Challenge 4 — Moondream Analysis Failures**: Moondream (~1.6B parameters) could not produce valid JSON, causing "Analysis failed" errors. When given a JSON template, it copied the template verbatim. When given a plain-text prompt, the response had no JSON markers, causing the parser to return None.
+
+*Resolution*: A dedicated plain-text processing path was implemented for Moondream. When no JSON is found in the response (no `{` character), the system falls through to the text fallback extractor instead of returning None. This extractor scans for hazard-related keywords with context awareness, assigns appropriate severity levels, and produces structured hazard data from natural language descriptions.
+
+**Ground Truth Scarcity**: No public dataset of home images with labelled fall hazards exists. The PHELE dataset provides real domestic images but lacks comprehensive hazard annotations. A curated test collection of 56 images (31 high-risk, 25 low-risk) was assembled from royalty-free sources to enable systematic evaluation across risk levels.
+
+**VLM Output Variability**: Same image with identical prompt produced varying detection counts across runs. Resolution included temperature set to 0.0 (LLaVA) and 0.1 (Moondream), fixed seed (42), confidence thresholding, and deduplication. Lesson: VLM stochasticity requires architectural design accommodations.
 
 ### 4.3 Limitations Acknowledged
 
@@ -157,11 +173,11 @@ The primary limitations are: (1) absence of large-scale clinical validation agai
 
 ### 4.4 Lessons Learnt
 
-**Technical**: Start with simple prompts and add complexity incrementally. Design for VLM output variability from the beginning. Comprehensive testing is essential for AI system reliability. Modular architecture enables rapid iteration across model backends.
+**Technical**: Start with simple prompts and add complexity incrementally. Design for VLM output variability from the beginning. Modular architecture enables rapid iteration across model backends.
 
-**Project Management**: Scope management is critical for time-limited projects. Early supervisor engagement prevents rework. Documentation should be maintained throughout development, not retrospectively. Buffer time for unexpected challenges (e.g., model output debugging) is essential.
+**Project Management**: Scope management is critical for time-limited projects. Early supervisor engagement prevents rework. Buffer time for unexpected challenges (e.g., model output debugging) is essential.
 
-**Research**: Novel applications require careful literature positioning across multiple disciplines (AI, healthcare, gerontology). Ethical considerations are integral to healthcare AI development, not an afterthought. Evaluation methodology requires early planning, particularly regarding ground truth data availability. Identifying open research questions is itself a valuable contribution.
+**Research**: Ethical considerations are integral to healthcare AI development. Evaluation methodology requires early planning, particularly regarding ground truth data availability.
 
 ### 4.5 Personal Reflection
 
@@ -231,6 +247,16 @@ tests/test_scoring.py .................. [100%]
 
 ---
 
+### Appendix F: Demo Video
+
+A demonstration video showing the complete system workflow is available at:
+
+[Demo Video Link — to be added]
+
+The video covers: uploading room images, running LLaVA and Moondream analysis, interpreting risk scores and hazard detections, model comparison mode, and testing across high-risk and low-risk environments.
+
+---
+
 *Supporting material submitted in partial fulfilment of MSc Research Project (COM742), Ulster University, 2025/26.*
 
-**Word Count:** ~2,350 words (excluding appendices)
+**Word Count:** ~2,400 words (excluding appendices)

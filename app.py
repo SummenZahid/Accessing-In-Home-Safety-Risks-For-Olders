@@ -25,8 +25,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 # Configuration
-MAX_HAZARDS = 6  # Limit to top 6 hazards
-CONFIDENCE_THRESHOLD = 0.6  # Minimum confidence to show
+MAX_HAZARDS = 10  # Limit to top 10 hazards
+CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to show
 
 # Page configuration
 st.set_page_config(
@@ -147,7 +147,7 @@ def get_image_stats(image_bytes: bytes) -> dict:
             "brightness": round(np.mean(img_array) / 255.0, 2),
             "contrast": round(np.std(img_array) / 255.0, 2),
         }
-    except:
+    except Exception:
         return {}
 
 
@@ -246,7 +246,7 @@ def draw_region_highlights(image_bytes: bytes, hazards: list) -> bytes:
         # Add legend
         try:
             font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 14)
-        except:
+        except (OSError, IOError):
             font = ImageFont.load_default()
 
         legend_draw = ImageDraw.Draw(img)
@@ -283,24 +283,69 @@ def get_severity_emoji(severity: str) -> str:
 
 
 def calculate_risk_score(hazards: list) -> tuple:
-    """Calculate risk score from hazards."""
+    """Calculate risk score from hazards using elderly-vulnerability-aware scoring.
+
+    Scoring considers that an older adult living alone may have multiple
+    vulnerabilities (mobility impairment, vision/hearing loss, cognitive decline)
+    that compound the danger of each individual hazard. The algorithm applies:
+    - Per-hazard weighted scores based on severity and category
+    - Cumulative risk multiplier (more hazards = disproportionately more danger)
+    - High-severity bonus (critical/high hazards carry extra weight)
+    - Minimum floor per hazard to prevent under-scoring
+    """
     if not hazards:
         return 0, "LOW"
 
-    severity_weights = {"low": 0.25, "medium": 0.50, "high": 0.75, "critical": 1.0}
+    severity_weights = {"low": 0.4, "medium": 0.65, "high": 0.85, "critical": 1.0}
     category_weights = {
-        "stairs": 1.0, "bathroom": 0.95, "flooring": 0.85, "obstacles": 0.85,
-        "lighting": 0.80, "furniture": 0.75, "kitchen": 0.75, "bedroom": 0.70,
-        "external": 0.80, "general": 0.65
+        "fire": 1.0, "electrical": 1.0, "structural": 0.95,
+        "stairs": 1.0, "bathroom": 0.95, "flooring": 0.90, "obstacles": 0.90,
+        "lighting": 0.85, "furniture": 0.80, "kitchen": 0.85, "bedroom": 0.75,
+        "external": 0.85, "general": 0.70
     }
 
+    # Base multiplier per hazard — higher than before to spread the 0-100 range
+    BASE_MULTIPLIER = 30
+
     total_score = 0
+    high_critical_count = 0
+
     for hazard in hazards:
         severity = hazard.get('severity', 'medium').lower()
         category = hazard.get('category', 'general').lower()
         sev_weight = severity_weights.get(severity, 0.5)
         cat_weight = category_weights.get(category, 0.7)
-        total_score += sev_weight * cat_weight * 20
+
+        # Each hazard contributes a meaningful amount
+        hazard_score = sev_weight * cat_weight * BASE_MULTIPLIER
+        # Minimum floor: every detected hazard adds at least 5 points
+        hazard_score = max(hazard_score, 5.0)
+        total_score += hazard_score
+
+        if severity in ('high', 'critical'):
+            high_critical_count += 1
+
+    # Cumulative risk multiplier: multiple hazards compound danger
+    # 1-2 hazards: no bonus; 3-5: +15%; 6-8: +30%; 9+: +45%
+    hazard_count = len(hazards)
+    if hazard_count >= 9:
+        cumulative_multiplier = 1.45
+    elif hazard_count >= 6:
+        cumulative_multiplier = 1.30
+    elif hazard_count >= 3:
+        cumulative_multiplier = 1.15
+    else:
+        cumulative_multiplier = 1.0
+
+    total_score *= cumulative_multiplier
+
+    # High-severity bonus: extra points when multiple high/critical hazards exist
+    if high_critical_count >= 3:
+        total_score += 15
+    elif high_critical_count >= 2:
+        total_score += 10
+    elif high_critical_count >= 1:
+        total_score += 5
 
     final_score = min(100, total_score)
 
@@ -320,7 +365,7 @@ def check_ollama_status() -> bool:
     try:
         response = requests.get("http://localhost:11434/api/tags", timeout=5)
         return response.status_code == 200
-    except:
+    except (requests.exceptions.RequestException, OSError):
         return False
 
 
@@ -330,7 +375,7 @@ def get_available_models() -> list:
         if response.status_code == 200:
             return [m['name'] for m in response.json().get('models', [])]
         return []
-    except:
+    except (requests.exceptions.RequestException, OSError):
         return []
 
 
@@ -351,22 +396,72 @@ def filter_hazards(hazards: list, confidence_threshold: float, max_hazards: int)
 
 
 def extract_hazards_from_text(text: str) -> list:
-    """Fallback: extract hazards from plain text when JSON parsing fails."""
-    keyword_to_category = {
-        'rug': 'flooring', 'mat': 'flooring', 'carpet': 'flooring', 'floor': 'flooring',
-        'tile': 'flooring', 'slip': 'flooring', 'wet': 'flooring', 'threshold': 'flooring',
-        'cord': 'obstacles', 'cable': 'obstacles', 'wire': 'obstacles', 'clutter': 'obstacles',
-        'object': 'obstacles', 'trip': 'obstacles', 'obstruct': 'obstacles',
-        'stair': 'stairs', 'step': 'stairs', 'railing': 'stairs', 'handrail': 'stairs',
-        'grab bar': 'bathroom', 'shower': 'bathroom', 'tub': 'bathroom', 'bath': 'bathroom',
-        'toilet': 'bathroom',
-        'light': 'lighting', 'dim': 'lighting', 'dark': 'lighting', 'lamp': 'lighting',
-        'chair': 'furniture', 'table': 'furniture', 'couch': 'furniture', 'bed': 'furniture',
-        'edge': 'furniture', 'sharp': 'furniture', 'unstable': 'furniture',
-    }
-    high_severity_keywords = {'stair', 'wet', 'grab bar', 'railing', 'slip', 'tub', 'shower'}
+    """Fallback: extract hazards from plain text when JSON parsing fails.
 
-    text_lower = text.lower()
+    Uses two tiers of keywords:
+    - Direct hazard words (fire, clutter, crack) → always treated as hazards
+    - Context-dependent words (floor, bath, stair) → only hazards when paired
+      with a danger modifier (broken, missing, no, damaged, wet, loose, etc.)
+    """
+    # Words that are ALWAYS hazards when mentioned
+    direct_hazard_keywords = {
+        'fire': ('fire', 'critical'), 'flame': ('fire', 'critical'),
+        'burn': ('fire', 'critical'), 'smoke': ('fire', 'critical'),
+        'blaze': ('fire', 'critical'), 'ignit': ('fire', 'critical'),
+        'clutter': ('obstacles', 'critical'), 'cluttered': ('obstacles', 'critical'),
+        'debris': ('obstacles', 'high'), 'mess': ('obstacles', 'high'),
+        'trip': ('obstacles', 'high'), 'tripping': ('obstacles', 'high'),
+        'obstruct': ('obstacles', 'high'), 'blocked': ('obstacles', 'high'),
+        'slip': ('flooring', 'critical'), 'slippery': ('flooring', 'critical'),
+        'collapse': ('structural', 'critical'), 'collapsed': ('structural', 'critical'),
+        'mold': ('structural', 'high'), 'moldy': ('structural', 'high'),
+        'overload': ('electrical', 'high'), 'spark': ('electrical', 'critical'),
+        'exposed wire': ('electrical', 'critical'),
+        'loose rug': ('flooring', 'high'), 'loose carpet': ('flooring', 'high'),
+        'no grab bar': ('bathroom', 'critical'), 'no handrail': ('stairs', 'critical'),
+        'missing handrail': ('stairs', 'critical'), 'missing grab bar': ('bathroom', 'critical'),
+    }
+
+    # Words that are only hazards when near a danger modifier
+    context_keywords = {
+        'floor': 'flooring', 'tile': 'flooring', 'carpet': 'flooring',
+        'rug': 'flooring', 'mat': 'flooring', 'surface': 'flooring',
+        'stair': 'stairs', 'step': 'stairs', 'railing': 'stairs', 'handrail': 'stairs',
+        'shower': 'bathroom', 'tub': 'bathroom', 'bath': 'bathroom',
+        'toilet': 'bathroom', 'grab bar': 'bathroom',
+        'light': 'lighting', 'lamp': 'lighting',
+        'chair': 'furniture', 'table': 'furniture', 'bed': 'furniture',
+        'couch': 'furniture', 'furniture': 'furniture',
+        'cord': 'obstacles', 'cable': 'obstacles', 'wire': 'obstacles',
+        'outlet': 'electrical', 'wiring': 'electrical', 'electric': 'electrical',
+        'wall': 'structural', 'ceiling': 'structural', 'door': 'structural',
+    }
+
+    # Modifiers that indicate an actual hazard (not just a room description)
+    danger_modifiers = {
+        'broken', 'damaged', 'cracked', 'missing', 'no ', 'without',
+        'wet', 'slippery', 'loose', 'torn', 'worn', 'unstable', 'wobbly',
+        'dark', 'dim', 'poor', 'inadequate', 'blocked', 'cluttered',
+        'exposed', 'frayed', 'faulty', 'leaking', 'rusty', 'sharp',
+        'hazard', 'danger', 'risk', 'unsafe', 'fall',
+    }
+
+    # Negation phrases — if these appear near the keyword, it's NOT a hazard
+    negation_patterns = [
+        'no ', 'not ', 'no visible', 'none', "don't", "doesn't", "isn't",
+        'without any', 'free of', 'absence of', 'lack of', 'well maintained',
+        'well-maintained', 'clean', 'tidy', 'organized', 'no sign',
+        'not appear', 'not see', 'not detect', 'not find', 'not observe',
+    ]
+
+    def has_negation(sentence_lower: str, keyword: str) -> bool:
+        """Check if the keyword is negated in the sentence."""
+        # Find position of keyword
+        idx = sentence_lower.find(keyword)
+        # Check the 40 characters before the keyword for negation
+        prefix = sentence_lower[max(0, idx - 40):idx]
+        return any(neg in prefix for neg in negation_patterns)
+
     sentences = re.split(r'[.!?\n]', text)
     found_hazards = []
     seen_keywords = set()
@@ -375,22 +470,59 @@ def extract_hazards_from_text(text: str) -> list:
         sentence_lower = sentence.lower().strip()
         if not sentence_lower:
             continue
-        for keyword, category in keyword_to_category.items():
+
+        # Check direct hazard keywords first
+        matched = False
+        for keyword, (category, severity) in direct_hazard_keywords.items():
             if keyword in sentence_lower and keyword not in seen_keywords:
+                # Skip if keyword is negated
+                if has_negation(sentence_lower, keyword):
+                    continue
                 seen_keywords.add(keyword)
-                severity = 'high' if keyword in high_severity_keywords else 'medium'
                 found_hazards.append({
                     'category': category,
                     'subcategory': keyword,
                     'severity': severity,
                     'description': sentence.strip(),
                     'region': 'center',
-                    'confidence': 0.65,
-                    'recommendation': f'Address {keyword} hazard to reduce fall risk'
+                    'confidence': 0.7,
+                    'recommendation': f'Address {keyword} hazard to reduce risk for elderly resident'
                 })
-                break  # one hazard per sentence
+                matched = True
+                break
 
-    return found_hazards[:6]
+        if matched:
+            continue
+
+        # Check context-dependent keywords — only if danger modifier present
+        has_danger = any(mod in sentence_lower for mod in danger_modifiers)
+        if not has_danger:
+            continue
+
+        for keyword, category in context_keywords.items():
+            if keyword in sentence_lower and keyword not in seen_keywords:
+                if has_negation(sentence_lower, keyword):
+                    continue
+                seen_keywords.add(keyword)
+                # Determine severity based on modifier
+                if any(m in sentence_lower for m in ('broken', 'missing', 'no ', 'exposed', 'blocked')):
+                    severity = 'high'
+                elif any(m in sentence_lower for m in ('wet', 'slippery', 'dark', 'dim', 'loose')):
+                    severity = 'high'
+                else:
+                    severity = 'medium'
+                found_hazards.append({
+                    'category': category,
+                    'subcategory': f'{sentence_lower.split(keyword)[0].strip().split()[-1] if sentence_lower.split(keyword)[0].strip() else ""} {keyword}'.strip(),
+                    'severity': severity,
+                    'description': sentence.strip(),
+                    'region': 'center',
+                    'confidence': 0.65,
+                    'recommendation': f'Address {keyword} hazard to reduce risk for elderly resident'
+                })
+                break
+
+    return found_hazards[:10]
 
 
 def analyze_with_ollama(image_bytes: bytes, model: str = "llava:7b") -> dict:
@@ -401,40 +533,72 @@ def analyze_with_ollama(image_bytes: bytes, model: str = "llava:7b") -> dict:
         is_moondream = 'moondream' in model.lower()
 
         if is_moondream:
-            # Simplified prompt for Moondream's smaller capacity
-            prompt = """Look at this image of a room in a home. List any fall hazards you can see that could cause an elderly person to trip, slip, or fall.
+            # Plain text prompt for Moondream — too small for JSON output
+            prompt = """Describe this room. What safety hazards do you see that could hurt an elderly person? List each hazard on a separate line. For each hazard, say how dangerous it is: low, medium, high, or critical.
 
-For each hazard, state what it is, how dangerous it is (low, medium, high, or critical), and describe it briefly.
+Look for: fire, smoke, clutter on floor, broken stairs, missing handrails, wet floors, dark areas, exposed wires, broken furniture, sharp objects, blocked doorways, damaged walls or ceiling.
 
-Respond in JSON format:
-{"room_type": "room name", "hazards": [{"subcategory": "hazard name", "severity": "low/medium/high/critical", "description": "what you see"}]}
-
-If no hazards are visible, respond: {"room_type": "room name", "hazards": []}"""
-            ollama_temperature = 0.0
+Only describe what you actually see in this image."""
+            ollama_temperature = 0.1
             ollama_num_predict = 800
         else:
             # Full prompt for LLaVA and other capable models
             ollama_temperature = 0.0
             ollama_num_predict = 1500
-            prompt = """You are an expert occupational therapist assessing a home for fall hazards.
+            prompt = """You are an expert home safety assessor conducting a comprehensive safety risk assessment for an elderly person who lives ALONE.
 
-Analyze this image and identify ONLY the most significant fall hazards that are clearly visible.
-Be conservative - only report hazards you can clearly see, not potential or assumed hazards.
+CRITICAL CONTEXT: The person living here may have one or more of these vulnerabilities:
+- Limited mobility (uses walker, cane, or wheelchair)
+- Poor vision or legally blind
+- Hearing impairment or deaf
+- Reduced balance and strength
+- Cognitive decline or confusion
+- Arthritis limiting grip strength
+- Slow reaction time in emergencies
+
+Your job is to identify EVERY safety hazard in this image — not just fall risks, but ALL dangers to an elderly person. Err on the side of caution — it is far more dangerous to MISS a hazard than to over-report one.
+
+Examine the ENTIRE image systematically for these hazard types:
+
+FIRE & BURN HAZARDS: open flames, unattended cooking, fire damage, smoke, flammable materials near heat sources, missing smoke detectors, candles, overheated appliances, hot surfaces without guards
+FALL HAZARDS: clutter on floor, loose rugs, cords across paths, wet/slippery surfaces, poor lighting, missing grab bars/handrails, uneven flooring, obstacles in walkways
+ELECTRICAL HAZARDS: exposed wiring, overloaded outlets, damaged cords, water near electronics
+STRUCTURAL HAZARDS: broken furniture, damaged floors/walls, water damage, collapsed shelving, broken glass, exposed nails/screws
+CHEMICAL/TOXIC HAZARDS: spills, mold, gas appliances without ventilation, unsanitary conditions
+BLOCKED EXITS: furniture or objects blocking doorways, escape routes, or emergency access
+SHARP/INJURY HAZARDS: broken glass, sharp edges, protruding objects at head/body height
 
 For each hazard provide:
-1. category: one of (bathroom, stairs, flooring, lighting, obstacles, furniture, kitchen, bedroom, external, general)
-2. subcategory: specific hazard name (e.g., "loose rug", "missing grab bar")
+1. category: one of (bathroom, stairs, flooring, lighting, obstacles, furniture, kitchen, bedroom, external, general, fire, electrical, structural)
+2. subcategory: specific hazard name (e.g., "kitchen fire", "exposed wiring", "floor clutter", "broken glass")
 3. severity: low, medium, high, or critical
-4. description: brief description of the hazard
-5. region: where in the image (e.g., "floor center", "left wall", "top right corner", "bottom of image")
-6. confidence: 0.0 to 1.0 (how confident you are this is a real hazard)
-7. recommendation: how to fix it
+4. description: what you see and WHY it is dangerous for an elderly person
+5. region: where in the image (e.g., "floor center", "left wall", "bottom right")
+6. confidence: 0.0 to 1.0
+7. recommendation: specific actionable fix
 
-IMPORTANT RULES:
-- Only report 3-6 hazards maximum
-- Only report hazards with confidence >= 0.6
-- Be specific about what you actually see
-- Do NOT guess or assume hazards that aren't visible
+SEVERITY GUIDELINES — rate from the perspective of a vulnerable elderly person:
+- "critical": immediate life-threatening danger (active fire, gas leak, structural collapse, blocked exit, exposed live wires)
+- "high": serious injury risk (burn hazards, major clutter, no grab bars, exposed sharp edges, water near electricity)
+- "medium": moderate risk (dim lighting, minor clutter, worn surfaces, cosmetic damage)
+- "low": minor concern that still warrants attention
+
+IMPORTANT:
+- Report up to 10 hazards — be thorough about what is ACTUALLY VISIBLE
+- Fire, smoke, and burn hazards are ALWAYS critical or high severity
+- Clutter, mess, and disorganization are SERIOUS hazards for elderly people
+- Do NOT hallucinate or invent objects that are not in the image — only describe what you can genuinely see
+- Use specific, descriptive subcategory names (e.g., "active stove fire" not just "kitchen")
+
+CRITICAL — AVOID FALSE POSITIVES:
+- A shower, bathtub, toilet, sink, bed, table, or chair is NOT a hazard by itself
+- Only flag these if they are BROKEN, DAMAGED, or specifically MISSING a safety feature (e.g., "shower without grab bar", "stairs without handrail")
+- A clean, well-maintained room with normal furniture should have FEW or ZERO hazards
+- If the room looks clean, organized, and well-lit, it is LOW risk — return an empty hazards list or only minor hazards
+- Do NOT invent hazards like "clutter" or "tripping hazard" in a tidy, organized room
+- Normal furniture arrangement is NOT clutter. Normal room items are NOT obstacles.
+- If you cannot clearly see a specific hazard, do NOT report it
+- It is BETTER to return zero hazards for a safe room than to fabricate false ones
 
 Identify the room type first.
 
@@ -446,15 +610,13 @@ Respond ONLY with valid JSON (no other text):
             "category": "category",
             "subcategory": "specific hazard",
             "severity": "low/medium/high/critical",
-            "description": "what you see",
+            "description": "what you see and why it's dangerous",
             "region": "where in image",
             "confidence": 0.8,
             "recommendation": "how to fix"
         }
     ]
-}
-
-If no clear hazards are visible, return: {"room_type": "room_type", "hazards": []}"""
+}"""
 
         response = requests.post(
             "http://localhost:11434/api/generate",
@@ -491,7 +653,37 @@ If no clear hazards are visible, return: {"room_type": "room_type", "hazards": [
         # Extract and fix truncated JSON
         start_idx = response_text.find("{")
         if start_idx == -1:
-            return None
+            # No JSON found — use text fallback (common for Moondream plain text responses)
+            fallback_hazards = extract_hazards_from_text(raw_response_text)
+            if fallback_hazards:
+                parsed_result = {"hazards": fallback_hazards, "room_type": "unknown"}
+            else:
+                parsed_result = {"hazards": [], "room_type": "unknown"}
+            # Skip JSON parsing, go straight to backfill
+            hazards = parsed_result.get('hazards', [])
+            for hazard in hazards:
+                hazard.setdefault('category', 'general')
+                hazard.setdefault('region', 'center')
+                hazard.setdefault('confidence', 0.7)
+                hazard.setdefault('recommendation', 'Address this hazard to reduce fall risk')
+            filtered_hazards = filter_hazards(hazards, CONFIDENCE_THRESHOLD, MAX_HAZARDS)
+            risk_score, risk_level = calculate_risk_score(filtered_hazards)
+            recommendations = []
+            for i, hazard in enumerate(filtered_hazards[:5], 1):
+                sev = hazard.get('severity', 'medium').upper()
+                rec = hazard.get('recommendation', 'Address this hazard')
+                recommendations.append(f"Priority {i} ({sev}): {rec}")
+            return {
+                "hazards": filtered_hazards,
+                "risk_score": risk_score,
+                "risk_level": risk_level,
+                "room_type": parsed_result.get("room_type", "unknown"),
+                "total_hazards": len(filtered_hazards),
+                "recommendations": recommendations,
+                "model_used": model,
+                "raw_hazard_count": len(hazards),
+                "raw_response": raw_response_text
+            }
 
         json_str = response_text[start_idx:]
 
