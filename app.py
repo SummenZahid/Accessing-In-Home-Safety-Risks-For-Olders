@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 # Configuration
 MAX_HAZARDS = 10  # Limit to top 10 hazards
-CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to show
+CONFIDENCE_THRESHOLD = 0.6  # Minimum confidence to show (raised from 0.5 to reduce hallucinations)
 
 # Page configuration
 st.set_page_config(
@@ -296,64 +296,96 @@ def calculate_risk_score(hazards: list) -> tuple:
     if not hazards:
         return 0, "LOW"
 
-    severity_weights = {"low": 0.4, "medium": 0.65, "high": 0.85, "critical": 1.0}
+    severity_weights = {"low": 0.3, "medium": 0.60, "high": 1.0, "critical": 1.6}
     category_weights = {
-        "fire": 1.0, "electrical": 1.0, "structural": 0.95,
+        "fire": 1.0, "electrical": 1.0, "structural": 1.0,
         "stairs": 1.0, "bathroom": 0.95, "flooring": 0.90, "obstacles": 0.90,
-        "lighting": 0.85, "furniture": 0.80, "kitchen": 0.85, "bedroom": 0.75,
-        "external": 0.85, "general": 0.70
+        "lighting": 0.80, "furniture": 0.75, "kitchen": 0.80, "bedroom": 0.75,
+        "external": 0.85, "general": 0.60
     }
 
-    # Base multiplier per hazard — higher than before to spread the 0-100 range
-    BASE_MULTIPLIER = 30
+    # Catastrophic-damage indicators — when these appear at high+ severity,
+    # the room is visibly wrecked (collapsed walls, exposed wiring, debris).
+    # A single such finding from a VLM typically represents many sub-hazards
+    # (the whole wall is damaged, not just one spot), so we treat them as
+    # critical-equivalent and add a structural-damage bonus.
+    DAMAGE_KEYWORDS = (
+        'damaged wall', 'damaged floor', 'damaged ceiling', 'damaged stair',
+        'broken floor', 'broken window', 'broken stair',
+        'exposed wir', 'exposed cable', 'exposed beam',
+        'debris', 'rubble', 'collapse', 'crumbling', 'wrecked', 'ruined',
+        'rotted', 'rotting', 'water damage', 'fire damage', 'structural damage',
+        'hole in', 'caved in', 'falling apart',
+    )
+
+    # Base multiplier per hazard — calibrated so that:
+    # 1 high hazard ≈ 20pts, 2 high ≈ 50pts (HIGH), 3 high ≈ 75pts (CRITICAL)
+    BASE_MULTIPLIER = 22
 
     total_score = 0
     high_critical_count = 0
+    structural_damage_count = 0
 
     for hazard in hazards:
         severity = hazard.get('severity', 'medium').lower()
         category = hazard.get('category', 'general').lower()
+        confidence = hazard.get('confidence', 0.7)
         sev_weight = severity_weights.get(severity, 0.5)
         cat_weight = category_weights.get(category, 0.7)
 
-        # Each hazard contributes a meaningful amount
-        hazard_score = sev_weight * cat_weight * BASE_MULTIPLIER
-        # Minimum floor: every detected hazard adds at least 5 points
-        hazard_score = max(hazard_score, 5.0)
+        # Detect catastrophic damage in this hazard
+        text_blob = ' '.join(str(hazard.get(f, '')) for f in
+                             ('subcategory', 'description', 'category')).lower()
+        is_damage = (severity in ('high', 'critical')
+                     and any(kw in text_blob for kw in DAMAGE_KEYWORDS))
+        if is_damage:
+            structural_damage_count += 1
+            # Promote high-severity damage findings to critical-equivalent
+            if severity == 'high':
+                sev_weight = severity_weights['critical']
+
+        hazard_score = sev_weight * cat_weight * BASE_MULTIPLIER * min(confidence, 1.0)
+        hazard_score = max(hazard_score, 4.0)
         total_score += hazard_score
 
         if severity in ('high', 'critical'):
             high_critical_count += 1
 
-    # Cumulative risk multiplier: multiple hazards compound danger
-    # 1-2 hazards: no bonus; 3-5: +15%; 6-8: +30%; 9+: +45%
+    # Cumulative risk multiplier — multiple hazards compound danger for elderly
     hazard_count = len(hazards)
     if hazard_count >= 9:
-        cumulative_multiplier = 1.45
+        cumulative_multiplier = 1.60
     elif hazard_count >= 6:
-        cumulative_multiplier = 1.30
+        cumulative_multiplier = 1.40
     elif hazard_count >= 3:
-        cumulative_multiplier = 1.15
+        cumulative_multiplier = 1.20
     else:
         cumulative_multiplier = 1.0
 
     total_score *= cumulative_multiplier
 
-    # High-severity bonus: extra points when multiple high/critical hazards exist
-    if high_critical_count >= 3:
-        total_score += 15
+    # High-severity bonus
+    if high_critical_count >= 4:
+        total_score += 25
     elif high_critical_count >= 2:
-        total_score += 10
+        total_score += 15
     elif high_critical_count >= 1:
-        total_score += 5
+        total_score += 8
+
+    # Structural-damage bonus — only fires when visible damage keywords were
+    # detected at high+ severity. Low and moderate cases never trigger this.
+    if structural_damage_count >= 2:
+        total_score += 25
+    elif structural_damage_count >= 1:
+        total_score += 15
 
     final_score = min(100, total_score)
 
-    if final_score <= 25:
+    if final_score <= 20:
         level = "LOW"
-    elif final_score <= 50:
+    elif final_score <= 45:
         level = "MODERATE"
-    elif final_score <= 75:
+    elif final_score <= 70:
         level = "HIGH"
     else:
         level = "CRITICAL"
@@ -380,19 +412,81 @@ def get_available_models() -> list:
 
 
 def filter_hazards(hazards: list, confidence_threshold: float, max_hazards: int) -> list:
-    """Filter hazards by confidence and limit count."""
-    # Filter by confidence
+    """Filter hazards by confidence, remove likely hallucinations, and limit count.
+
+    Anti-hallucination measures:
+    1. Confidence threshold filtering
+    2. Vague description detection — removes hazards with generic/non-specific descriptions
+    3. Normal fixture detection — removes reports of normal room items as hazards
+    4. Duplicate category collapsing — keeps only highest-confidence per subcategory
+    """
+    # Step 1: Filter by confidence
     filtered = [h for h in hazards if h.get('confidence', 0.5) >= confidence_threshold]
 
-    # Sort by severity (critical first) then confidence
+    # Step 2: Remove likely hallucinations — vague or generic descriptions
+    hallucination_indicators = [
+        'could be', 'might be', 'possibly', 'potential', 'may have',
+        'appears to have', 'seems like', 'not clearly visible',
+        'cannot confirm', 'hard to tell', 'difficult to see'
+    ]
+    normal_fixtures_as_hazards = [
+        'bathtub', 'shower', 'toilet', 'sink', 'bed', 'sofa', 'couch',
+        'table', 'chair', 'desk', 'cabinet', 'door', 'window', 'mirror',
+        'refrigerator', 'stove', 'oven', 'microwave'
+    ]
+
+    cleaned = []
+    for h in filtered:
+        desc = h.get('description', '').lower()
+        subcat = h.get('subcategory', '').lower()
+
+        # Skip hazards with uncertain language indicating hallucination
+        if any(indicator in desc for indicator in hallucination_indicators):
+            continue
+
+        # Skip if subcategory is just a normal fixture name (not a real hazard)
+        # e.g., subcategory="bathtub" or "shower" without a modifier like "no_grab_bars"
+        is_just_fixture = False
+        for fixture in normal_fixtures_as_hazards:
+            if subcat == fixture or (subcat.startswith(fixture) and
+                                     not any(mod in subcat for mod in
+                                             ['no_', 'missing', 'broken', 'damaged',
+                                              'loose', 'wet', 'slippery', 'blocked'])):
+                # Check if description mentions actual damage/issue
+                if not any(word in desc for word in
+                           ['broken', 'damaged', 'missing', 'no grab', 'no handrail',
+                            'loose', 'wet', 'slippery', 'cracked', 'unstable',
+                            'without', 'absent', 'lack']):
+                    is_just_fixture = True
+                    break
+        if is_just_fixture:
+            continue
+
+        cleaned.append(h)
+
+    # Step 3: Deduplicate — keep only highest confidence per subcategory
+    seen_subcats = {}
+    deduped = []
+    for h in cleaned:
+        subcat = h.get('subcategory', 'unknown').lower()
+        conf = h.get('confidence', 0.5)
+        if subcat not in seen_subcats or conf > seen_subcats[subcat]:
+            if subcat in seen_subcats:
+                # Remove the lower-confidence duplicate
+                deduped = [d for d in deduped
+                           if d.get('subcategory', '').lower() != subcat]
+            seen_subcats[subcat] = conf
+            deduped.append(h)
+
+    # Step 4: Sort by severity (critical first) then confidence
     severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
-    filtered.sort(key=lambda h: (
+    deduped.sort(key=lambda h: (
         severity_order.get(h.get('severity', 'medium').lower(), 2),
         -h.get('confidence', 0.5)
     ))
 
     # Limit to max
-    return filtered[:max_hazards]
+    return deduped[:max_hazards]
 
 
 def extract_hazards_from_text(text: str) -> list:
@@ -545,64 +639,59 @@ Only describe what you actually see in this image."""
             # Full prompt for LLaVA and other capable models
             ollama_temperature = 0.0
             ollama_num_predict = 1500
-            prompt = """You are an expert home safety assessor conducting a comprehensive safety risk assessment for an elderly person who lives ALONE.
+            prompt = """You are an expert occupational therapist with 20 years of geriatric fall prevention experience conducting a home safety assessment for an elderly person (65+) who may have reduced mobility, poor vision, and balance issues.
 
-CRITICAL CONTEXT: The person living here may have one or more of these vulnerabilities:
-- Limited mobility (uses walker, cane, or wheelchair)
-- Poor vision or legally blind
-- Hearing impairment or deaf
-- Reduced balance and strength
-- Cognitive decline or confusion
-- Arthritis limiting grip strength
-- Slow reaction time in emergencies
+TASK: Analyse this image and identify GENUINE, CLEARLY VISIBLE safety hazards. Accuracy is more important than quantity.
 
-Your job is to identify EVERY safety hazard in this image — not just fall risks, but ALL dangers to an elderly person. Err on the side of caution — it is far more dangerous to MISS a hazard than to over-report one.
+STEP 1 — SCENE ASSESSMENT:
+First, determine if this room appears generally SAFE or UNSAFE:
+- SAFE: Clean, organized, well-lit, no obvious hazards → report FEW or ZERO hazards
+- UNSAFE: Visible clutter, damage, missing safety features, poor conditions → report ALL specific hazards you can see
+- SEVERELY UNSAFE: Structural damage, debris on floor, collapsed elements, major disrepair → report every hazard with "high" or "critical" severity
 
-Examine the ENTIRE image systematically for these hazard types:
+STEP 2 — HAZARD IDENTIFICATION:
+For each hazard you report, you MUST be able to point to a SPECIFIC VISIBLE element in the image. Ask yourself: "Can I describe exactly what I see and where it is?"
 
-FIRE & BURN HAZARDS: open flames, unattended cooking, fire damage, smoke, flammable materials near heat sources, missing smoke detectors, candles, overheated appliances, hot surfaces without guards
-FALL HAZARDS: clutter on floor, loose rugs, cords across paths, wet/slippery surfaces, poor lighting, missing grab bars/handrails, uneven flooring, obstacles in walkways
-ELECTRICAL HAZARDS: exposed wiring, overloaded outlets, damaged cords, water near electronics
-STRUCTURAL HAZARDS: broken furniture, damaged floors/walls, water damage, collapsed shelving, broken glass, exposed nails/screws
-CHEMICAL/TOXIC HAZARDS: spills, mold, gas appliances without ventilation, unsanitary conditions
-BLOCKED EXITS: furniture or objects blocking doorways, escape routes, or emergency access
-SHARP/INJURY HAZARDS: broken glass, sharp edges, protruding objects at head/body height
+Hazard categories to check:
+FALL HAZARDS: loose rugs, cords on floor, wet surfaces, missing grab bars/handrails, clutter in walkways
+FIRE/BURN: open flames, fire damage, smoke, flammable materials near heat
+ELECTRICAL: exposed wiring, damaged cords, overloaded outlets
+STRUCTURAL: broken furniture, damaged floors/walls, collapsed items
+LIGHTING: very dim areas, no night lights in corridors
 
-For each hazard provide:
-1. category: one of (bathroom, stairs, flooring, lighting, obstacles, furniture, kitchen, bedroom, external, general, fire, electrical, structural)
-2. subcategory: specific hazard name (e.g., "kitchen fire", "exposed wiring", "floor clutter", "broken glass")
-3. severity: low, medium, high, or critical
-4. description: what you see and WHY it is dangerous for an elderly person
-5. region: where in the image (e.g., "floor center", "left wall", "bottom right")
-6. confidence: 0.0 to 1.0
-7. recommendation: specific actionable fix
+STEP 3 — VERIFY EACH HAZARD (critical step):
+Before including any hazard in your response, verify:
+✓ Is this something ACTUALLY WRONG, or just a normal room feature?
+✓ Can I see this specific problem clearly in the image?
+✓ Would a professional occupational therapist flag this during an in-person visit?
 
-SEVERITY GUIDELINES — rate from the perspective of a vulnerable elderly person:
-- "critical": immediate life-threatening danger (active fire, gas leak, structural collapse, blocked exit, exposed live wires)
-- "high": serious injury risk (burn hazards, major clutter, no grab bars, exposed sharp edges, water near electricity)
-- "medium": moderate risk (dim lighting, minor clutter, worn surfaces, cosmetic damage)
-- "low": minor concern that still warrants attention
+RULES — READ CAREFULLY:
+- Normal furniture (tables, chairs, beds, sofas) in normal positions = NOT hazards
+- A bathtub, shower, toilet, or sink that appears functional = NOT a hazard
+- A clean, organized room = ZERO or near-zero hazards. Return empty hazards list.
+- Only flag bathroom fixtures if MISSING grab bars, non-slip mats, or visibly damaged
+- Only flag stairs if MISSING handrails or visibly damaged
+- "Clutter" means objects scattered on floor blocking paths — NOT normal room decor
+- If uncertain whether something is a hazard, DO NOT include it
+- Set confidence BELOW 0.6 for anything you are not sure about
 
-IMPORTANT:
-- Report up to 10 hazards — be thorough about what is ACTUALLY VISIBLE
-- Fire, smoke, and burn hazards are ALWAYS critical or high severity
-- Clutter, mess, and disorganization are SERIOUS hazards for elderly people
-- Do NOT hallucinate or invent objects that are not in the image — only describe what you can genuinely see
-- Use specific, descriptive subcategory names (e.g., "active stove fire" not just "kitchen")
+For each GENUINE hazard provide:
+1. category: bathroom/stairs/flooring/lighting/obstacles/furniture/kitchen/bedroom/external/general/fire/electrical/structural
+2. subcategory: specific hazard name (e.g., "loose_rug", "missing_grab_bars", "floor_clutter")
+3. severity: low/medium/high/critical
+4. description: what you SPECIFICALLY SEE and why it endangers an elderly person
+5. region: location in image (e.g., "floor center", "left wall")
+6. confidence: 0.0-1.0 (only use 0.8+ when clearly visible)
+7. recommendation: specific fix
 
-CRITICAL — AVOID FALSE POSITIVES:
-- A shower, bathtub, toilet, sink, bed, table, or chair is NOT a hazard by itself
-- Only flag these if they are BROKEN, DAMAGED, or specifically MISSING a safety feature (e.g., "shower without grab bar", "stairs without handrail")
-- A clean, well-maintained room with normal furniture should have FEW or ZERO hazards
-- If the room looks clean, organized, and well-lit, it is LOW risk — return an empty hazards list or only minor hazards
-- Do NOT invent hazards like "clutter" or "tripping hazard" in a tidy, organized room
-- Normal furniture arrangement is NOT clutter. Normal room items are NOT obstacles.
-- If you cannot clearly see a specific hazard, do NOT report it
-- It is BETTER to return zero hazards for a safe room than to fabricate false ones
+SEVERITY GUIDELINES:
+- "critical": immediate life-threatening (active fire, structural collapse, blocked exit, ceiling/wall collapse)
+- "high": serious injury risk (debris on floor, damaged walls/floors, missing handrails, major clutter, broken structural elements)
+- "medium": moderate risk (dim lighting, minor clutter, worn surfaces, missing non-slip mats)
+- "low": minor concern
+NOTE: In a clearly damaged or deteriorated room, most hazards should be rated "high" or "critical".
 
-Identify the room type first.
-
-Respond ONLY with valid JSON (no other text):
+Respond ONLY with valid JSON:
 {
     "room_type": "bathroom/kitchen/bedroom/living_room/stairs/hallway",
     "hazards": [
@@ -610,7 +699,7 @@ Respond ONLY with valid JSON (no other text):
             "category": "category",
             "subcategory": "specific hazard",
             "severity": "low/medium/high/critical",
-            "description": "what you see and why it's dangerous",
+            "description": "what you specifically see",
             "region": "where in image",
             "confidence": 0.8,
             "recommendation": "how to fix"

@@ -39,6 +39,16 @@ htmlcov/
 # Documentation (submitted separately)
 docs/
 
+# Evaluation results
+results/
+
+# Claude Code settings
+.claude/
+
+# Doc-generation utility scripts
+scripts/generate_figures.py
+scripts/md_to_docx.py
+
 # Data (large files - download separately)
 data/raw/
 data/processed/
